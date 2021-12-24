@@ -17,6 +17,13 @@ import (
 
 
 
+// context data stored with each requesattemptst
+const (
+    Attempts int = iota
+    Retry
+)
+
+
 // a single backend server
 type Backend struct {
 	URL *url.URL
@@ -77,6 +84,21 @@ func (s *ServerPool) GetNextPeer() *Backend {
 	}
 	return nil
 }
+
+
+func GetAttemptsFromContext(r *http.Request) int {
+     if attempts, ok := r.Context().Value(Attempts).(int); ok {
+         return attempts
+     }
+     return 1
+ }
+
+func GetRetryFromContext(r *http.Request) int {
+     if retry, ok := r.Context().Value(Retry).(int); ok {
+         return retry
+     }
+     return 0
+ }
 
 
 // load balance incoming requests
