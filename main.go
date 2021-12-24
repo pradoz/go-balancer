@@ -5,6 +5,7 @@ import (
     "flag"
     "fmt"
     "log"
+    "net"
     "net/http"
     "net/http/httputil"
     "net/url"
@@ -119,6 +120,50 @@ func loadBalancer(w http.ResponseWriter, r *http.Request) {
 }
 
 
+func healthCheck() {
+    t := time.NewTicker(time.Minute * 5) // every 5 minutes
+    for {
+        select {
+        case <-t.C:
+            log.Printf("Initiating health check...")
+            serverPool.checkHealth()
+            log.Printf("Completed health check.")
+        }
+    }
+}
+
+
+// sets the status of the health check
+func (s *ServerPool) checkHealth() {
+    for _, backend := range s.backends {
+        status := "up"
+
+        // check and set alive status
+        alive := isBackendAlive(backend.URL)
+        backend.SetAlive(alive)
+
+        if !alive {
+            status = "down"
+        }
+        log.Printf("%s [%s]\n", backend.URL, status)
+    }
+}
+
+
+// returns true if we can establish a TCP connection to the backend server
+func isBackendAlive(u *url.URL) bool {
+    timeout := 3 * time.Second
+    conn, err := net.DialTimeout("tcp", u.Host, timeout)
+
+    if err != nil {
+        log.Printf("Unable to reach server, got:", err)
+        return false
+    }
+
+    _ = conn.Close()
+    return true
+}
+
 
 
 
@@ -188,8 +233,8 @@ func main() {
 		Handler: http.HandlerFunc(loadBalancer),
 	}
 
-    // TODO: health checks
-    // go healthCheck()
+    // start health checks
+    go healthCheck()
 
 	log.Printf("Load Balancer started at :%d\n", port)
 	if err := server.ListenAndServe(); err != nil {
